@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talking Ben AI</title>
     <style>
-        /* Базове скидання стилів */
+        /* Базове скидання стилів для мобільного повноекранного режиму */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -23,15 +23,18 @@
             font-family: Arial, sans-serif;
         }
 
+        /* Ігровий контейнер з фіксованою пропорцією 9:16 */
         #game-viewport {
             width: 1024px;
             height: 1536px;
             position: relative;
             background-color: #000;
             overflow: hidden;
+            /* Автоматично масштабує весь контейнер під екран телефону */
             transform-origin: center;
         }
 
+        /* Накладання спрайтів та відео */
         .sprite, .video-animation {
             width: 100%;
             height: 100%;
@@ -44,12 +47,15 @@
             z-index: 1;
         }
 
+        /* Приховуємо елементи за замовчуванням */
         .hidden {
             display: none;
         }
 
+        /* Абсолютно прозорий для ока тригер телефону */
         #phone-trigger {
             position: absolute;
+            /* Координати центру (60, 845) з радіусом 40px */
             left: 20px;
             top: 805px;
             width: 80px;
@@ -59,7 +65,7 @@
             z-index: 9999; 
         }
 
-        /* 📺 Дебаг-віконце */
+        /* 📺 Стильне дебаг-віконце для тестування ШІ */
         #debug-panel {
             position: absolute;
             top: 20px;
@@ -71,8 +77,8 @@
             padding: 15px;
             color: #fff;
             font-size: 14px;
-            z-index: 10000;
-            pointer-events: auto;
+            z-index: 10000; /* Поверх усього */
+            pointer-events: auto; /* Дозволяє взаємодіяти з панеллю */
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
         }
 
@@ -115,6 +121,7 @@
             transition: width 0.1s ease;
         }
 
+        /* Кнопка зміни ключа */
         #change-key-btn {
             background-color: #ff3333;
             color: white;
@@ -131,6 +138,7 @@
             background-color: #cc0000;
         }
 
+        /* Статуси кольором */
         .status-active { color: #00ff00; }
         .status-idle { color: #ffcc00; }
         .status-error { color: #ff3333; }
@@ -138,20 +146,29 @@
 </head>
 <body>
 
+    <!-- Ігрове поле -->
     <div id="game-viewport">
+        
+        <!-- Спрайт очікування (Stand) -->
         <img id="sprite-stand" class="sprite" src="bens/stand.png" alt="Ben Standing">
+
+        <!-- Спрайт слухання (Listen) -->
         <img id="sprite-listen" class="sprite hidden" src="bens/listen.png" alt="Ben Listening">
 
+        <!-- Відео анімація дзвінка (Call) -->
         <video id="video-call" class="video-animation hidden" playsinline>
             <source src="bens/call.mp4" type="video/mp4">
         </video>
 
+        <!-- Відео анімація скидання трубки (Drop) -->
         <video id="video-drop" class="video-animation hidden" playsinline>
             <source src="bens/drop.mp4" type="video/mp4">
         </video>
 
+        <!-- Невидима кнопка телефону -->
         <div id="phone-trigger"></div>
 
+        <!-- 📺 Тимчасове дебаг-віконце для тестування -->
         <div id="debug-panel">
             <h3>Talking Ben AI — Монітор</h3>
             <div class="debug-row">
@@ -179,6 +196,7 @@
             </div>
             <button id="change-key-btn">Змінити/Видалити API Key</button>
         </div>
+
     </div>
 
     <script>
@@ -199,6 +217,7 @@
             }
         }
 
+        // Кнопка для скидання ключа
         document.getElementById("change-key-btn").addEventListener("click", () => {
             const newKey = prompt("Введи новий Gemini API Key (або залиш порожнім для видалення):", GEMINI_API_KEY || "");
             if (newKey !== null) {
@@ -242,12 +261,10 @@
         let javascriptNode;
         
         // Чутливість та таймінги
-        const SILENCE_THRESHOLD = 8; // Поріг тиші (все що нижче цієї гучності — вважається тишею)
-        const SILENCE_DURATION = 1500; // Час тиші в мілісекундах (1.5 секунди), після якого зупиняємо запис
+        const SILENCE_THRESHOLD = 8; // Поріг тиші
+        const SILENCE_DURATION = 1500; // Час тиші (1.5 секунди)
         let silenceStartTime = null;
-        let isUserSpeaking = false; // Чи почав користувач взагалі говорити
-
-        // Змінна для збереження тексту, який встигли розпізнати
+        let isUserSpeaking = false; // Чи почав користувач говорити
         let finalTranscript = "";
 
         // Налаштування Web Speech API (Розпізнавання голосу)
@@ -257,13 +274,13 @@
 
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.continuous = true; // Тримаємо розпізнавання відкритим
-            recognition.interimResults = true; // Ловимо слова "на льоту"
+            recognition.continuous = true; 
+            recognition.interimResults = true; 
             recognition.lang = 'uk-UA'; 
 
             recognition.onstart = () => {
                 updateMicStatus("слухає...", "status-active");
-                finalTranscript = ""; // Очищаємо перед новим сеансом
+                finalTranscript = ""; 
                 isUserSpeaking = false;
                 silenceStartTime = null;
             };
@@ -279,7 +296,6 @@
                 }
             };
 
-            // Працює постійно, поки ти говориш
             recognition.onresult = (event) => {
                 let interimTranscript = "";
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -290,18 +306,17 @@
                     }
                 }
                 
-                // Показуємо проміжний або фінальний текст на панелі
                 const displaySpeech = finalTranscript || interimTranscript;
                 if (displaySpeech.trim()) {
                     debugUserText.textContent = displaySpeech;
-                    isUserSpeaking = true; // Гравець почав говорити!
+                    isUserSpeaking = true; 
                 }
             };
         } else {
             updateMicStatus("Браузер не підтримує розпізнавання голосу", "status-error");
         }
 
-        // Функція ініціалізації вимірювача гучності
+        // Ініціалізація вимірювача гучності
         async function setupAudioAnalyser(stream) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
@@ -319,7 +334,6 @@
                 const array = new Uint8Array(analyser.frequencyBinCount);
                 analyser.getByteFrequencyData(array);
                 
-                // Вираховуємо середню гучність
                 let values = 0;
                 const length = array.length;
                 for (let i = 0; i < length; i++) {
@@ -327,28 +341,21 @@
                 }
                 const averageVolume = Math.round(values / length);
 
-                // Оновлюємо візуальну смужку гучності
                 volumeBar.style.width = Math.min(averageVolume * 2, 100) + "%";
                 debugVolumeVal.textContent = averageVolume;
 
-                // Слідкуємо за тишею ТІЛЬКИ коли триває розмова і анімація не програється
                 if (gameState === "розмова" && !isAnimating) {
-                    
                     if (averageVolume < SILENCE_THRESHOLD) {
-                        // Якщо звук тихий
                         if (silenceStartTime === null) {
                             silenceStartTime = Date.now();
                         } else {
                             const elapsedSilence = Date.now() - silenceStartTime;
-                            
-                            // Якщо тихо вже більше ніж 1.5 секунди І гравець хоч щось сказав
                             if (elapsedSilence > SILENCE_DURATION && isUserSpeaking) {
                                 console.log("Тиша виявлена! Відправляємо запит...");
                                 stopListeningAndSend();
                             }
                         }
                     } else {
-                        // Якщо користувач знову заговорив — скидаємо таймер тиші
                         silenceStartTime = null;
                         isUserSpeaking = true; 
                     }
@@ -356,23 +363,20 @@
             };
         }
 
-        // Примусова зупинка слухання та відправка накопиченого тексту
+        // Примусова зупинка слухання та відправка
         async function stopListeningAndSend() {
             if (recognition) {
-                recognition.stop(); // Зупиняємо розпізнавання
+                recognition.stop(); 
             }
             
-            // Скидаємо прапорці
             isUserSpeaking = false;
             silenceStartTime = null;
 
-            // Збираємо фінальний текст
             const textToSend = debugUserText.textContent.trim();
             
             if (textToSend && textToSend !== "—") {
                 await askGeminiBen(textToSend);
             } else {
-                // Якщо була тиша, але нічого не сказали — просто вмикаємо мікрофон назад
                 setTimeout(() => {
                     if (gameState === "розмова" && !isAnimating) {
                         try { recognition.start(); } catch(e) {}
@@ -381,14 +385,12 @@
             }
         }
 
-        // Запит мікрофона при старті
+        // Запит мікрофона
         async function requestMicrophone() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 micPermissionGranted = true;
                 updateMicStatus("доступ дозволено", "status-idle");
-                
-                // Налаштовуємо аналізатор звуку
                 await setupAudioAnalyser(stream);
             } catch (err) {
                 console.error("Помилка доступу до мікрофона:", err);
@@ -481,7 +483,6 @@
 
             if (recognition && micPermissionGranted) {
                 try {
-                    // Очищаємо старі тексти перед початком нового діалогу
                     debugUserText.textContent = "—";
                     debugBenReply.textContent = "—";
                     recognition.start();
@@ -503,7 +504,7 @@
 
 
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З GEMINI API
+        // 🤖 ІНТЕГРАЦІЯ З GEMINI API (СТАБІЛЬНА ВЕРСІЯ v1)
         // ==========================================
         async function askGeminiBen(userText) {
             debugBenReply.textContent = "Бен думає...";
@@ -513,6 +514,7 @@
                 return;
             }
 
+            // Стабільний ендпоінт v1
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
             const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. You love to subtly troll and tease the user, but you have boundaries.
@@ -525,13 +527,15 @@ Analyze the user's input and reply with exactly ONE of the following 6 options. 
 6. "Belch" - Use this to express extreme disgust, gross topics, or when you are completely fed up.
 CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "No", "Ho-ho-ho!", "Ugh...", "Hang up", "Belch".`;
 
+            // Об'єднуємо промт та речення гравця для сумісності з v1
+            const fullPrompt = `${systemPrompt}\n\nUser says: "${userText}"\nDecision:`;
+
             const requestBody = {
-                contents: [{ parts: [{ text: userText }] }],
-                systemInstruction: {
-                    parts: [{ text: systemPrompt }]
-                },
+                contents: [{ 
+                    parts: [{ text: fullPrompt }] 
+                }],
                 generationConfig: {
-                    temperature: 0.5,
+                    temperature: 0.3,
                     maxOutputTokens: 5
                 }
             };
@@ -560,8 +564,6 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                         triggerHangUp();
                     }, 1000); 
                 } else {
-                    // Коли Бен відповів, ми даємо йому 2.5 секунди на "відтворення" (нашу майбутню анімацію)
-                    // і знову вмикаємо мікрофон
                     setTimeout(() => {
                         if (gameState === "розмова" && !isAnimating) {
                             try { 
