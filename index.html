@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talking Ben AI</title>
     <style>
-        /* Базове скидання стилів для мобільного повноекранного режиму */
+        /* Базове скидання стилів */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -23,18 +23,15 @@
             font-family: Arial, sans-serif;
         }
 
-        /* Ігровий контейнер з фіксованою пропорцією 9:16 */
         #game-viewport {
             width: 1024px;
             height: 1536px;
             position: relative;
             background-color: #000;
             overflow: hidden;
-            /* Автоматично масштабує весь контейнер під екран телефону */
             transform-origin: center;
         }
 
-        /* Накладання спрайтів та відео */
         .sprite, .video-animation {
             width: 100%;
             height: 100%;
@@ -47,15 +44,12 @@
             z-index: 1;
         }
 
-        /* Приховуємо елементи за замовчуванням */
         .hidden {
             display: none;
         }
 
-        /* Абсолютно прозорий для ока тригер телефону */
         #phone-trigger {
             position: absolute;
-            /* Координати центру (60, 845) з радіусом 40px */
             left: 20px;
             top: 805px;
             width: 80px;
@@ -65,7 +59,7 @@
             z-index: 9999; 
         }
 
-        /* 📺 Стильне дебаг-віконце для тестування ШІ */
+        /* 📺 Дебаг-віконце */
         #debug-panel {
             position: absolute;
             top: 20px;
@@ -77,8 +71,8 @@
             padding: 15px;
             color: #fff;
             font-size: 14px;
-            z-index: 10000; /* Поверх усього */
-            pointer-events: auto; /* Дозволяє взаємодіяти з панеллю */
+            z-index: 10000;
+            pointer-events: auto;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
         }
 
@@ -104,7 +98,23 @@
             word-wrap: break-word;
         }
 
-        /* Кнопка зміни ключа */
+        /* Індикатор гучності */
+        #volume-bar-container {
+            width: 100%;
+            height: 10px;
+            background-color: #333;
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        #volume-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #00ff00;
+            transition: width 0.1s ease;
+        }
+
         #change-key-btn {
             background-color: #ff3333;
             color: white;
@@ -121,7 +131,6 @@
             background-color: #cc0000;
         }
 
-        /* Статуси кольором */
         .status-active { color: #00ff00; }
         .status-idle { color: #ffcc00; }
         .status-error { color: #ff3333; }
@@ -129,29 +138,20 @@
 </head>
 <body>
 
-    <!-- Ігрове поле -->
     <div id="game-viewport">
-        
-        <!-- Спрайт очікування (Stand) -->
         <img id="sprite-stand" class="sprite" src="bens/stand.png" alt="Ben Standing">
-
-        <!-- Спрайт слухання (Listen) -->
         <img id="sprite-listen" class="sprite hidden" src="bens/listen.png" alt="Ben Listening">
 
-        <!-- Відео анімація дзвінка (Call) -->
         <video id="video-call" class="video-animation hidden" playsinline>
             <source src="bens/call.mp4" type="video/mp4">
         </video>
 
-        <!-- Відео анімація скидання трубки (Drop) -->
         <video id="video-drop" class="video-animation hidden" playsinline>
             <source src="bens/drop.mp4" type="video/mp4">
         </video>
 
-        <!-- Невидима кнопка телефону -->
         <div id="phone-trigger"></div>
 
-        <!-- 📺 Тимчасове дебаг-віконце для тестування -->
         <div id="debug-panel">
             <h3>Talking Ben AI — Монітор</h3>
             <div class="debug-row">
@@ -163,6 +163,13 @@
                 <span id="debug-mic" class="debug-value status-idle">вимкнено</span>
             </div>
             <div class="debug-row">
+                <span class="debug-label">Гучність:</span>
+                <span id="debug-volume-val">0</span>
+                <div id="volume-bar-container">
+                    <div id="volume-bar"></div>
+                </div>
+            </div>
+            <div class="debug-row">
                 <span class="debug-label">Ти сказав:</span>
                 <p id="debug-user-text" class="debug-value">—</p>
             </div>
@@ -172,12 +179,11 @@
             </div>
             <button id="change-key-btn">Змінити/Видалити API Key</button>
         </div>
-
     </div>
 
     <script>
         // ==========================================
-        // 🔑 БЕЗПЕЧНЕ ОТРИМАННЯ КЛЮЧА (БЕЗ ХАРДКОДУ)
+        // 🔑 БЕЗПЕЧНЕ ОТРИМАННЯ КЛЮЧА
         // ==========================================
         let GEMINI_API_KEY = localStorage.getItem("gemini_key");
 
@@ -193,7 +199,6 @@
             }
         }
 
-        // Кнопка для скидання ключа (якщо гравець помилився при введенні)
         document.getElementById("change-key-btn").addEventListener("click", () => {
             const newKey = prompt("Введи новий Gemini API Key (або залиш порожнім для видалення):", GEMINI_API_KEY || "");
             if (newKey !== null) {
@@ -225,6 +230,25 @@
         const debugMic = document.getElementById("debug-mic");
         const debugUserText = document.getElementById("debug-user-text");
         const debugBenReply = document.getElementById("debug-ben-reply");
+        const volumeBar = document.getElementById("volume-bar");
+        const debugVolumeVal = document.getElementById("debug-volume-val");
+
+        // ==========================================
+        // 🎙️ НАЛАШТУВАННЯ АУДІО-АНАЛІЗАТОРА (ДЛЯ ТИШІ)
+        // ==========================================
+        let audioContext;
+        let analyser;
+        let microphoneStream;
+        let javascriptNode;
+        
+        // Чутливість та таймінги
+        const SILENCE_THRESHOLD = 8; // Поріг тиші (все що нижче цієї гучності — вважається тишею)
+        const SILENCE_DURATION = 1500; // Час тиші в мілісекундах (1.5 секунди), після якого зупиняємо запис
+        let silenceStartTime = null;
+        let isUserSpeaking = false; // Чи почав користувач взагалі говорити
+
+        // Змінна для збереження тексту, який встигли розпізнати
+        let finalTranscript = "";
 
         // Налаштування Web Speech API (Розпізнавання голосу)
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -233,19 +257,19 @@
 
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.continuous = false; 
-            recognition.interimResults = false; 
+            recognition.continuous = true; // Тримаємо розпізнавання відкритим
+            recognition.interimResults = true; // Ловимо слова "на льоту"
             recognition.lang = 'uk-UA'; 
 
             recognition.onstart = () => {
                 updateMicStatus("слухає...", "status-active");
+                finalTranscript = ""; // Очищаємо перед новим сеансом
+                isUserSpeaking = false;
+                silenceStartTime = null;
             };
 
             recognition.onend = () => {
                 updateMicStatus("очікування фрази", "status-idle");
-                if (gameState === "розмова" && !isAnimating) {
-                    recognition.start();
-                }
             };
 
             recognition.onerror = (event) => {
@@ -255,32 +279,123 @@
                 }
             };
 
-            recognition.onresult = async (event) => {
-                const transcript = event.results[0][0].transcript;
-                debugUserText.textContent = transcript;
-                console.log("Гравця розпізнано:", transcript);
-
-                recognition.stop();
-                await askGeminiBen(transcript);
+            // Працює постійно, поки ти говориш
+            recognition.onresult = (event) => {
+                let interimTranscript = "";
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript + " ";
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                // Показуємо проміжний або фінальний текст на панелі
+                const displaySpeech = finalTranscript || interimTranscript;
+                if (displaySpeech.trim()) {
+                    debugUserText.textContent = displaySpeech;
+                    isUserSpeaking = true; // Гравець почав говорити!
+                }
             };
         } else {
             updateMicStatus("Браузер не підтримує розпізнавання голосу", "status-error");
         }
 
-        // Функція запиту мікрофона на початку гри
+        // Функція ініціалізації вимірювача гучності
+        async function setupAudioAnalyser(stream) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphoneStream = audioContext.createMediaStreamSource(stream);
+            javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+            analyser.smoothingTimeConstant = 0.8;
+            analyser.fftSize = 1024;
+
+            microphoneStream.connect(analyser);
+            analyser.connect(javascriptNode);
+            javascriptNode.connect(audioContext.destination);
+
+            javascriptNode.onaudioprocess = () => {
+                const array = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(array);
+                
+                // Вираховуємо середню гучність
+                let values = 0;
+                const length = array.length;
+                for (let i = 0; i < length; i++) {
+                    values += array[i];
+                }
+                const averageVolume = Math.round(values / length);
+
+                // Оновлюємо візуальну смужку гучності
+                volumeBar.style.width = Math.min(averageVolume * 2, 100) + "%";
+                debugVolumeVal.textContent = averageVolume;
+
+                // Слідкуємо за тишею ТІЛЬКИ коли триває розмова і анімація не програється
+                if (gameState === "розмова" && !isAnimating) {
+                    
+                    if (averageVolume < SILENCE_THRESHOLD) {
+                        // Якщо звук тихий
+                        if (silenceStartTime === null) {
+                            silenceStartTime = Date.now();
+                        } else {
+                            const elapsedSilence = Date.now() - silenceStartTime;
+                            
+                            // Якщо тихо вже більше ніж 1.5 секунди І гравець хоч щось сказав
+                            if (elapsedSilence > SILENCE_DURATION && isUserSpeaking) {
+                                console.log("Тиша виявлена! Відправляємо запит...");
+                                stopListeningAndSend();
+                            }
+                        }
+                    } else {
+                        // Якщо користувач знову заговорив — скидаємо таймер тиші
+                        silenceStartTime = null;
+                        isUserSpeaking = true; 
+                    }
+                }
+            };
+        }
+
+        // Примусова зупинка слухання та відправка накопиченого тексту
+        async function stopListeningAndSend() {
+            if (recognition) {
+                recognition.stop(); // Зупиняємо розпізнавання
+            }
+            
+            // Скидаємо прапорці
+            isUserSpeaking = false;
+            silenceStartTime = null;
+
+            // Збираємо фінальний текст
+            const textToSend = debugUserText.textContent.trim();
+            
+            if (textToSend && textToSend !== "—") {
+                await askGeminiBen(textToSend);
+            } else {
+                // Якщо була тиша, але нічого не сказали — просто вмикаємо мікрофон назад
+                setTimeout(() => {
+                    if (gameState === "розмова" && !isAnimating) {
+                        try { recognition.start(); } catch(e) {}
+                    }
+                }, 500);
+            }
+        }
+
+        // Запит мікрофона при старті
         async function requestMicrophone() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 micPermissionGranted = true;
                 updateMicStatus("доступ дозволено", "status-idle");
-                stream.getTracks().forEach(track => track.stop());
+                
+                // Налаштовуємо аналізатор звуку
+                await setupAudioAnalyser(stream);
             } catch (err) {
                 console.error("Помилка доступу до мікрофона:", err);
                 updateMicStatus("доступ заборонено", "status-error");
             }
         }
 
-        // Оновлення дебаг статусів
         function updateMicStatus(text, className) {
             debugMic.textContent = text;
             debugMic.className = "debug-value " + className;
@@ -291,7 +406,6 @@
             debugState.textContent = state;
         }
 
-        // Адаптивне масштабування 9:16
         function resizeGame() {
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
@@ -306,7 +420,7 @@
         window.addEventListener('resize', resizeGame);
         window.addEventListener('load', async () => {
             resizeGame();
-            checkApiKey(); // Перевіряємо наявність API-ключа при завантаженні
+            checkApiKey(); 
             await requestMicrophone(); 
         });
 
@@ -314,7 +428,6 @@
         phoneTrigger.addEventListener("click", () => {
             if (isAnimating) return;
             
-            // Якщо гравець не ввів ключ, нагадуємо перед дзвінком
             if (!GEMINI_API_KEY) {
                 checkApiKey();
                 return;
@@ -340,7 +453,6 @@
             }
         });
 
-        // Скидання слухавки
         function triggerHangUp() {
             isAnimating = true;
             if (recognition) recognition.stop();
@@ -360,7 +472,6 @@
             dropVideo.addEventListener("playing", onDropPlaying);
         }
 
-        // Події закінчення відео
         callVideo.addEventListener("ended", () => {
             listenSprite.classList.remove("hidden");
             callVideo.classList.add("hidden");
@@ -370,6 +481,9 @@
 
             if (recognition && micPermissionGranted) {
                 try {
+                    // Очищаємо старі тексти перед початком нового діалогу
+                    debugUserText.textContent = "—";
+                    debugBenReply.textContent = "—";
                     recognition.start();
                 } catch(e) {
                     console.log("Вже слухає...");
@@ -446,16 +560,22 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                         triggerHangUp();
                     }, 1000); 
                 } else {
+                    // Коли Бен відповів, ми даємо йому 2.5 секунди на "відтворення" (нашу майбутню анімацію)
+                    // і знову вмикаємо мікрофон
                     setTimeout(() => {
                         if (gameState === "розмова" && !isAnimating) {
-                            try { recognition.start(); } catch(e) {}
+                            try { 
+                                debugUserText.textContent = "—";
+                                debugBenReply.textContent = "—";
+                                recognition.start(); 
+                            } catch(e) {}
                         }
                     }, 2500);
                 }
 
             } catch (error) {
                 console.error("Помилка запиту до Gemini:", error);
-                debugBenReply.textContent = "Помилка ШІ (можливо неправильний ключ)";
+                debugBenReply.textContent = "Помилка ШІ";
                 
                 setTimeout(() => {
                     if (gameState === "розмова" && !isAnimating) {
