@@ -235,7 +235,7 @@
                 } else {
                     GEMINI_API_KEY = newKey.trim();
                     localStorage.setItem("gemini_key", GEMINI_API_KEY);
-                    alert("Новий ключ успішно збережено!");
+                    alert("Новий ключ успешно збережено!");
                 }
             }
         });
@@ -321,7 +321,7 @@
                 finalTranscript = ""; 
                 isUserSpeaking = false;
                 silenceStartTime = null;
-                startAmbientTimer(); // Стартуємо таймер фонового відео, коли починаємо слухати
+                startAmbientTimer(); 
             };
 
             recognition.onend = () => {
@@ -401,7 +401,9 @@
         }
 
         async function stopListeningAndSend() {
-            if (recognition) { recognition.stop(); }
+            if (recognition) { 
+                try { recognition.stop(); } catch(e) {}
+            }
             isUserSpeaking = false;
             silenceStartTime = null;
 
@@ -423,7 +425,7 @@
             stopAmbientTimer();
             if (gameState !== "розмова" || isAnimating) return;
 
-            const randomTime = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000; // від 5 до 10 сек
+            const randomTime = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000; 
             ambientTimer = setTimeout(() => {
                 playAmbientVideo();
             }, randomTime);
@@ -492,7 +494,7 @@
             await requestMicrophone(); 
         });
 
-        // Телефонний тригер[cite: 1]
+        // Телефонний тригер
         phoneTrigger.addEventListener("click", () => {
             if (isAnimating) return;
             
@@ -517,7 +519,9 @@
         function triggerHangUp() {
             isAnimating = true;
             stopAmbientTimer();
-            if (recognition) recognition.stop();
+            if (recognition) {
+                try { recognition.stop(); } catch(e) {}
+            }
 
             showOnly(dropVideo);
             dropVideo.currentTime = 0;
@@ -550,7 +554,7 @@
 
 
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З GEMINI API + КЕРУВАННЯ ВІДЕОПЛЕЄРОМ
+        // 🤖 ІНТЕГРАЦІЯ З GEMINI 3.5 FLASH LIGHT
         // ==========================================
         async function askGeminiBen(userText) {
             isAnimating = true;
@@ -564,7 +568,6 @@
 
             const onThinkingEnded = () => {
                 thinkingVideo.removeEventListener("ended", onThinkingEnded);
-                // Після закінчення відео переходу фіксуємо позу think
                 if (isAnimating) { showOnly(thinkSprite); }
             };
             thinkingVideo.addEventListener("ended", onThinkingEnded);
@@ -574,7 +577,8 @@
                 return;
             }
 
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            // Оновлена модель Gemini 3.5 Flash Light для ультра-швидкого відгуку
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-light:generateContent?key=${GEMINI_API_KEY}`;
 
             const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. 
 Analyze the user's input and reply with exactly ONE of the following 6 options. Do not output any other words, punctuation, explanation, or markdown formatting. Just the exact string from this list:
@@ -600,35 +604,38 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                 });
                 
                 const data = await response.json();
-                if (data.error) throw new Error(data.error.message);
+                
+                // Перевірка на помилки 503 чи відсутність полів, щоб уникнути TypeError
+                if (data.error || !data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+                    throw new Error(data.error ? data.error.message : "Пуста відповідь сервера або ліміт");
+                }
 
                 let benDecision = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, '');
                 debugBenReply.textContent = benDecision;
                 console.log("Рішення ШІ:", benDecision);
 
-                // Крок 2: ШІ відповів. Запускаємо відео "stopthink" перед самою реакцією
+                // Крок 2: Перехід назад до слухавки
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
                 stopthinkVideo.play();
 
                 stopthinkVideo.addEventListener("ended", function onStopThinkEnded() {
                     stopthinkVideo.removeEventListener("ended", onStopThinkEnded);
-                    // Крок 3: Після повернення слухавки до вуха, програємо обрану реакцію Бена
                     playBenReaction(benDecision);
                 });
 
             } catch (error) {
-                console.error("Помилка запиту до Gemini:", error);
-                debugBenReply.textContent = "Помилка ШІ";
+                console.error("Перехоплена помилка запиту (Захист активовано):", error);
+                debugBenReply.textContent = "Сервер зайнятий -> 'No'";
                 
-                // У разі помилки просто повертаємо його назад у розмову
+                // Захисна поведінка: якщо Google ліг, Бен плавно опустить лапу і скаже "Ні"
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
                 stopthinkVideo.play();
-                stopthinkVideo.addEventListener("ended", () => {
-                    isAnimating = false;
-                    showOnly(listenSprite);
-                    if (gameState === "розмова") { recognition.start(); }
+                
+                stopthinkVideo.addEventListener("ended", function onFaultEnded() {
+                    stopthinkVideo.removeEventListener("ended", onFaultEnded);
+                    playBenReaction("No"); 
                 });
             }
         }
@@ -650,15 +657,13 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                 const randomIndex = Math.floor(Math.random() * burpVideos.length);
                 targetVideo = burpVideos[randomIndex];
             } else if (decision === "Hang up") {
-                // Якщо рішило повісити слухавку, відразу запускаємо скидання
                 triggerHangUp();
                 return;
             } else {
-                // Сейв-мод на випадок неочікуваної відповіді
-                targetVideo = hohohoVideo;
+                targetVideo = noVideo;
             }
 
-            // Запускаємо відтворення обраного відео
+            // Запускаємо відтворення обраного відео відповіді
             showOnly(targetVideo);
             targetVideo.currentTime = 0;
             targetVideo.play();
@@ -666,7 +671,7 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
             targetVideo.addEventListener("ended", function onReactionEnded() {
                 targetVideo.removeEventListener("ended", onReactionEnded);
                 
-                // Повернення у стан прослуховування після завершення анімації відповіді
+                // Повернення у стан прослуховування
                 isAnimating = false;
                 showOnly(listenSprite);
                 
