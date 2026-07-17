@@ -149,21 +149,29 @@
     <!-- Ігрове поле -->
     <div id="game-viewport">
         
-        <!-- Спрайт очікування (Stand) -->
+        <!-- Спрайти (Фото-заглушки) -->
         <img id="sprite-stand" class="sprite" src="bens/stand.png" alt="Ben Standing">
-
-        <!-- Спрайт слухання (Listen) -->
         <img id="sprite-listen" class="sprite hidden" src="bens/listen.png" alt="Ben Listening">
+        <img id="sprite-think" class="sprite hidden" src="bens/think.png" alt="Ben Thinking">
 
-        <!-- Відео анімація дзвінка (Call) -->
-        <video id="video-call" class="video-animation hidden" playsinline>
-            <source src="bens/call.mp4" type="video/mp4">
-        </video>
+        <!-- Відео анімації станів та переходів -->
+        <video id="video-call" class="video-animation hidden" playsinline><source src="bens/call.mp4" type="video/mp4"></video>
+        <video id="video-drop" class="video-animation hidden" playsinline><source src="bens/drop.mp4" type="video/mp4"></video>
+        <video id="video-ambient" class="video-animation hidden" playsinline><source src="bens/ambient.mp4" type="video/mp4"></video>
+        <video id="video-thinking" class="video-animation hidden" playsinline><source src="bens/thinking.mp4" type="video/mp4"></video>
+        <video id="video-stopthink" class="video-animation hidden" playsinline><source src="bens/stopthink.mp4" type="video/mp4"></video>
 
-        <!-- Відео анімація скидання трубки (Drop) -->
-        <video id="video-drop" class="video-animation hidden" playsinline>
-            <source src="bens/drop.mp4" type="video/mp4">
-        </video>
+        <!-- Відео анімації реакцій відповіді ШІ -->
+        <video id="video-yes" class="video-animation hidden" playsinline><source src="bens/Yes.mp4" type="video/mp4"></video>
+        <video id="video-no" class="video-animation hidden" playsinline><source src="bens/No.mp4" type="video/mp4"></video>
+        <video id="video-hohoho" class="video-animation hidden" playsinline><source src="bens/Hohoho.mp4" type="video/mp4"></video>
+        <video id="video-ugh" class="video-animation hidden" playsinline><source src="bens/Ugh.mp4" type="video/mp4"></video>
+
+        <!-- Пул відрижок (Burps) -->
+        <video id="video-burp1" class="video-animation hidden" playsinline><source src="bens/burp1.mp4" type="video/mp4"></video>
+        <video id="video-burp2" class="video-animation hidden" playsinline><source src="bens/burp2.mp4" type="video/mp4"></video>
+        <video id="video-burp3" class="video-animation hidden" playsinline><source src="bens/burp3.mp4" type="video/mp4"></video>
+        <video id="video-burp4" class="video-animation hidden" playsinline><source src="bens/burp4.mp4" type="video/mp4"></video>
 
         <!-- Невидима кнопка телефону -->
         <div id="phone-trigger"></div>
@@ -217,7 +225,6 @@
             }
         }
 
-        // Кнопка для скидання ключа
         document.getElementById("change-key-btn").addEventListener("click", () => {
             const newKey = prompt("Введи новий Gemini API Key (або залиш порожнім для видалення):", GEMINI_API_KEY || "");
             if (newKey !== null) {
@@ -235,12 +242,32 @@
 
         let gameState = "очікування"; 
         let isAnimating = false; 
+        let ambientTimer = null;
 
-        // Елементи інтерфейсу
+        // Елементи інтерфейсу (Фото)
         const standSprite = document.getElementById("sprite-stand");
         const listenSprite = document.getElementById("sprite-listen");
+        const thinkSprite = document.getElementById("sprite-think");
+
+        // Елементи інтерфейсу (Відео)
         const callVideo = document.getElementById("video-call");
         const dropVideo = document.getElementById("video-drop");
+        const ambientVideo = document.getElementById("video-ambient");
+        const thinkingVideo = document.getElementById("video-thinking");
+        const stopthinkVideo = document.getElementById("video-stopthink");
+
+        const yesVideo = document.getElementById("video-yes");
+        const noVideo = document.getElementById("video-no");
+        const hohohoVideo = document.getElementById("video-hohoho");
+        const ughVideo = document.getElementById("video-ugh");
+
+        const burpVideos = [
+            document.getElementById("video-burp1"),
+            document.getElementById("video-burp2"),
+            document.getElementById("video-burp3"),
+            document.getElementById("video-burp4")
+        ];
+
         const phoneTrigger = document.getElementById("phone-trigger");
         const gameViewport = document.getElementById("game-viewport");
 
@@ -252,22 +279,33 @@
         const volumeBar = document.getElementById("volume-bar");
         const debugVolumeVal = document.getElementById("debug-volume-val");
 
+        // Всі анімаційні елементи для швидкого приховування
+        const allVisuals = [
+            standSprite, listenSprite, thinkSprite,
+            callVideo, dropVideo, ambientVideo, thinkingVideo, stopthinkVideo,
+            yesVideo, noVideo, hohohoVideo, ughVideo,
+            ...burpVideos
+        ];
+
+        function showOnly(elementToShow) {
+            allVisuals.forEach(el => el.classList.add("hidden"));
+            elementToShow.classList.remove("hidden");
+        }
+
         // ==========================================
-        // 🎙️ НАЛАШТУВАННЯ АУДІО-АНАЛІЗАТОРА (ДЛЯ ТИШІ)
+        // 🎙️ НАЛАШТУВАННЯ АУДІО-АНАЛІЗАТОРА
         // ==========================================
         let audioContext;
         let analyser;
         let microphoneStream;
         let javascriptNode;
         
-        // Чутливість та таймінги
-        const SILENCE_THRESHOLD = 8; // Поріг тиші
-        const SILENCE_DURATION = 1500; // Час тиші (1.5 секунди)
+        const SILENCE_THRESHOLD = 8; 
+        const SILENCE_DURATION = 1500; 
         let silenceStartTime = null;
-        let isUserSpeaking = false; // Чи почав користувач говорити
+        let isUserSpeaking = false; 
         let finalTranscript = "";
 
-        // Налаштування Web Speech API (Розпізнавання голосу)
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         let micPermissionGranted = false;
@@ -283,10 +321,12 @@
                 finalTranscript = ""; 
                 isUserSpeaking = false;
                 silenceStartTime = null;
+                startAmbientTimer(); // Стартуємо таймер фонового відео, коли починаємо слухати
             };
 
             recognition.onend = () => {
                 updateMicStatus("очікування фрази", "status-idle");
+                stopAmbientTimer();
             };
 
             recognition.onerror = (event) => {
@@ -312,11 +352,8 @@
                     isUserSpeaking = true; 
                 }
             };
-        } else {
-            updateMicStatus("Браузер не підтримує розпізнавання голосу", "status-error");
         }
 
-        // Ініціалізація вимірювача гучності
         async function setupAudioAnalyser(stream) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
@@ -363,12 +400,8 @@
             };
         }
 
-        // Примусова зупинка слухання та відправка
         async function stopListeningAndSend() {
-            if (recognition) {
-                recognition.stop(); 
-            }
-            
+            if (recognition) { recognition.stop(); }
             isUserSpeaking = false;
             silenceStartTime = null;
 
@@ -385,7 +418,45 @@
             }
         }
 
-        // Запит мікрофона
+        // МЕНЕДЖЕР АМБІЄНТ-АНІМАЦІЇ (ФОН)
+        function startAmbientTimer() {
+            stopAmbientTimer();
+            if (gameState !== "розмова" || isAnimating) return;
+
+            const randomTime = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000; // від 5 до 10 сек
+            ambientTimer = setTimeout(() => {
+                playAmbientVideo();
+            }, randomTime);
+        }
+
+        function stopAmbientTimer() {
+            if (ambientTimer) {
+                clearTimeout(ambientTimer);
+                ambientTimer = null;
+            }
+        }
+
+        function playAmbientVideo() {
+            if (isAnimating || gameState !== "розмова") return;
+            isAnimating = true;
+            stopAmbientTimer();
+
+            showOnly(ambientVideo);
+            ambientVideo.currentTime = 0;
+            ambientVideo.play().catch(e => {
+                isAnimating = false;
+                startAmbientTimer();
+            });
+        }
+
+        ambientVideo.addEventListener("ended", () => {
+            isAnimating = false;
+            if (gameState === "розмова") {
+                showOnly(listenSprite);
+                startAmbientTimer();
+            }
+        });
+
         async function requestMicrophone() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -409,14 +480,9 @@
         }
 
         function resizeGame() {
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            
-            const scaleX = windowWidth / 1024;
-            const scaleY = windowHeight / 1536;
-            const scale = Math.min(scaleX, scaleY);
-            
-            gameViewport.style.transform = `scale(${scale})`;
+            const scaleX = window.innerWidth / 1024;
+            const scaleY = window.innerHeight / 1536;
+            gameViewport.style.transform = `scale(${Math.min(scaleX, scaleY)})`;
         }
 
         window.addEventListener('resize', resizeGame);
@@ -426,7 +492,7 @@
             await requestMicrophone(); 
         });
 
-        // Телефонний тригер
+        // Телефонний тригер[cite: 1]
         phoneTrigger.addEventListener("click", () => {
             if (isAnimating) return;
             
@@ -437,19 +503,12 @@
 
             if (gameState === "очікування") {
                 isAnimating = true;
-                callVideo.classList.remove("hidden");
+                stopAmbientTimer();
+                showOnly(callVideo);
                 callVideo.currentTime = 0;
                 callVideo.play().catch(err => {
-                    console.log(err);
                     isAnimating = false;
                 });
-
-                const onCallPlaying = () => {
-                    standSprite.classList.add("hidden");
-                    callVideo.removeEventListener("playing", onCallPlaying);
-                };
-                callVideo.addEventListener("playing", onCallPlaying);
-
             } else if (gameState === "розмова") {
                 triggerHangUp();
             }
@@ -457,87 +516,80 @@
 
         function triggerHangUp() {
             isAnimating = true;
+            stopAmbientTimer();
             if (recognition) recognition.stop();
 
-            listenSprite.classList.add("hidden");
-            dropVideo.classList.remove("hidden");
+            showOnly(dropVideo);
             dropVideo.currentTime = 0;
             dropVideo.play().catch(err => {
-                console.log(err);
                 isAnimating = false;
             });
-
-            const onDropPlaying = () => {
-                listenSprite.classList.add("hidden");
-                dropVideo.removeEventListener("playing", onDropPlaying);
-            };
-            dropVideo.addEventListener("playing", onDropPlaying);
         }
 
         callVideo.addEventListener("ended", () => {
-            listenSprite.classList.remove("hidden");
-            callVideo.classList.add("hidden");
-
             updateGameState("розмова");
             isAnimating = false;
+            showOnly(listenSprite);
 
             if (recognition && micPermissionGranted) {
                 try {
                     debugUserText.textContent = "—";
                     debugBenReply.textContent = "—";
                     recognition.start();
-                } catch(e) {
-                    console.log("Вже слухає...");
-                }
+                } catch(e) {}
             }
         });
 
         dropVideo.addEventListener("ended", () => {
-            standSprite.classList.remove("hidden");
-            dropVideo.classList.add("hidden");
-
             updateGameState("очікування");
             isAnimating = false;
+            showOnly(standSprite);
             debugUserText.textContent = "—";
             debugBenReply.textContent = "—";
         });
 
 
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З GEMINI API (СТАБІЛЬНА ВЕРСІЯ v1)
+        // 🤖 ІНТЕГРАЦІЯ З GEMINI API + КЕРУВАННЯ ВІДЕОПЛЕЄРОМ
         // ==========================================
         async function askGeminiBen(userText) {
+            isAnimating = true;
+            stopAmbientTimer();
             debugBenReply.textContent = "Бен думає...";
             
+            // Крок 1: Вмикаємо анімацію початку роздумів
+            showOnly(thinkingVideo);
+            thinkingVideo.currentTime = 0;
+            thinkingVideo.play();
+
+            const onThinkingEnded = () => {
+                thinkingVideo.removeEventListener("ended", onThinkingEnded);
+                // Після закінчення відео переходу фіксуємо позу think
+                if (isAnimating) { showOnly(thinkSprite); }
+            };
+            thinkingVideo.addEventListener("ended", onThinkingEnded);
+
             if (!GEMINI_API_KEY) {
                 debugBenReply.textContent = "Помилка: Немає API ключа!";
                 return;
             }
 
-            // Стабільний ендпоінт v1
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-            const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. You love to subtly troll and tease the user, but you have boundaries.
+            const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. 
 Analyze the user's input and reply with exactly ONE of the following 6 options. Do not output any other words, punctuation, explanation, or markdown formatting. Just the exact string from this list:
 1. "Yes" - Use this for polite questions, compliments, or yes/no questions with a positive bias.
-2. "No" - Use this if the user's input is absurd, factually wrong, or an invitation to do something stupid. If the user teases you or calls you a "noob", do not hang up, use "No" or laugh.
+2. "No" - Use this if the user's input is absurd, factually wrong, or an invitation to do something stupid.
 3. "Ho-ho-ho!" - Use this as a sarcastic, mocking laugh to tease the user back, or on a joke.
 4. "Ugh..." - Use this if the user is being boring, repetitive, or asks tedious, basic questions.
 5. "Hang up" - Use this ONLY if the user uses heavy insults, swear words, highly inappropriate language.
 6. "Belch" - Use this to express extreme disgust, gross topics, or when you are completely fed up.
 CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "No", "Ho-ho-ho!", "Ugh...", "Hang up", "Belch".`;
 
-            // Об'єднуємо промт та речення гравця для сумісності з v1
             const fullPrompt = `${systemPrompt}\n\nUser says: "${userText}"\nDecision:`;
-
             const requestBody = {
-                contents: [{ 
-                    parts: [{ text: fullPrompt }] 
-                }],
-                generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 5
-                }
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 5 }
             };
 
             try {
@@ -548,43 +600,84 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                 });
                 
                 const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error.message);
-                }
+                if (data.error) throw new Error(data.error.message);
 
-                let benDecision = data.candidates[0].content.parts[0].text.trim();
-                benDecision = benDecision.replace(/['"]+/g, '');
-
+                let benDecision = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, '');
                 debugBenReply.textContent = benDecision;
                 console.log("Рішення ШІ:", benDecision);
 
-                if (benDecision === "Hang up") {
-                    setTimeout(() => {
-                        triggerHangUp();
-                    }, 1000); 
-                } else {
-                    setTimeout(() => {
-                        if (gameState === "розмова" && !isAnimating) {
-                            try { 
-                                debugUserText.textContent = "—";
-                                debugBenReply.textContent = "—";
-                                recognition.start(); 
-                            } catch(e) {}
-                        }
-                    }, 2500);
-                }
+                // Крок 2: ШІ відповів. Запускаємо відео "stopthink" перед самою реакцією
+                showOnly(stopthinkVideo);
+                stopthinkVideo.currentTime = 0;
+                stopthinkVideo.play();
+
+                stopthinkVideo.addEventListener("ended", function onStopThinkEnded() {
+                    stopthinkVideo.removeEventListener("ended", onStopThinkEnded);
+                    // Крок 3: Після повернення слухавки до вуха, програємо обрану реакцію Бена
+                    playBenReaction(benDecision);
+                });
 
             } catch (error) {
                 console.error("Помилка запиту до Gemini:", error);
                 debugBenReply.textContent = "Помилка ШІ";
                 
-                setTimeout(() => {
-                    if (gameState === "розмова" && !isAnimating) {
-                        try { recognition.start(); } catch(e) {}
-                    }
-                }, 2000);
+                // У разі помилки просто повертаємо його назад у розмову
+                showOnly(stopthinkVideo);
+                stopthinkVideo.currentTime = 0;
+                stopthinkVideo.play();
+                stopthinkVideo.addEventListener("ended", () => {
+                    isAnimating = false;
+                    showOnly(listenSprite);
+                    if (gameState === "розмова") { recognition.start(); }
+                });
             }
+        }
+
+        // Функція для запуску конкретного відео фінальної відповіді Бена
+        function playBenReaction(decision) {
+            let targetVideo = null;
+
+            if (decision === "Yes") {
+                targetVideo = yesVideo;
+            } else if (decision === "No") {
+                targetVideo = noVideo;
+            } else if (decision === "Ho-ho-ho!") {
+                targetVideo = hohohoVideo;
+            } else if (decision === "Ugh...") {
+                targetVideo = ughVideo;
+            } else if (decision === "Belch") {
+                // Рандомний вибір з 4-х файлів відрижки
+                const randomIndex = Math.floor(Math.random() * burpVideos.length);
+                targetVideo = burpVideos[randomIndex];
+            } else if (decision === "Hang up") {
+                // Якщо рішило повісити слухавку, відразу запускаємо скидання
+                triggerHangUp();
+                return;
+            } else {
+                // Сейв-мод на випадок неочікуваної відповіді
+                targetVideo = hohohoVideo;
+            }
+
+            // Запускаємо відтворення обраного відео
+            showOnly(targetVideo);
+            targetVideo.currentTime = 0;
+            targetVideo.play();
+
+            targetVideo.addEventListener("ended", function onReactionEnded() {
+                targetVideo.removeEventListener("ended", onReactionEnded);
+                
+                // Повернення у стан прослуховування після завершення анімації відповіді
+                isAnimating = false;
+                showOnly(listenSprite);
+                
+                if (gameState === "розмова") {
+                    try {
+                        debugUserText.textContent = "—";
+                        debugBenReply.textContent = "—";
+                        recognition.start();
+                    } catch(e) {}
+                }
+            });
         }
     </script>
 </body>
