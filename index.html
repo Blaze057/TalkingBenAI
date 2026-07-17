@@ -577,8 +577,8 @@
                 return;
             }
 
-            // Оновлена модель Gemini 3.1 Flash Light для ультра-швидкого відгуку
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GEMINI_API_KEY}`;
+            // Оновлена модель Gemini 3.5 Flash для ультра-швидкого відгуку
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
             const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. 
 Analyze the user's input and reply with exactly ONE of the following 6 options. Do not output any other words, punctuation, explanation, or markdown formatting. Just the exact string from this list:
