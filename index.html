@@ -28,7 +28,7 @@
             width: 1024px;
             height: 1536px;
             position: relative;
-            background-color: #000;
+            background-color: #f0f8ff; /* Змінено з чорного на світлий фон, щоб прибрати чорні спалахи */
             overflow: hidden;
             /* Автоматично масштабує весь контейнер під екран телефону */
             transform-origin: center;
@@ -45,11 +45,15 @@
             user-select: none;
             -webkit-user-drag: none;
             z-index: 1;
+            background-color: transparent !important;
+            /* Додаємо мікро-плавність, щоб об'єкти не блимали при зміні станів */
+            transition: opacity 0.15s ease-in-out;
         }
 
         /* Приховуємо елементи за замовчуванням */
         .hidden {
             display: none;
+            opacity: 0;
         }
 
         /* Абсолютно прозорий для ока тригер телефону */
@@ -287,9 +291,21 @@
             ...burpVideos
         ];
 
+        // 1. ПОПЕРЕДНЄ ЗАВАНТАЖЕННЯ ДЛЯ ЛІКВІДАЦІЇ ЧОРНИХ СПАЛАХІВ
+        const imagesToPreload = ["bens/stand.png", "bens/listen.png", "bens/think.png"];
+        imagesToPreload.forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+
         function showOnly(elementToShow) {
-            allVisuals.forEach(el => el.classList.add("hidden"));
+            allVisuals.forEach(el => {
+                el.classList.add("hidden");
+                el.style.opacity = "0";
+            });
             elementToShow.classList.remove("hidden");
+            // Невелика затримка для плавного проявлення елемента
+            setTimeout(() => { elementToShow.style.opacity = "1"; }, 10);
         }
 
         // ==========================================
@@ -388,7 +404,7 @@
                         } else {
                             const elapsedSilence = Date.now() - silenceStartTime;
                             if (elapsedSilence > SILENCE_DURATION && isUserSpeaking) {
-                                console.log("Тиша виявлена! Відправляємо запит...");
+                                console.log("Тиша виявлена! Перевіряємо текст...");
                                 stopListeningAndSend();
                             }
                         }
@@ -409,14 +425,16 @@
 
             const textToSend = debugUserText.textContent.trim();
             
-            if (textToSend && textToSend !== "—") {
-                await askGeminiBen(textToSend);
+            // 2. ПЕРЕВІРКА НА РОЗБІРЛИВІСТЬ (Якщо пустий рядок, крапка чи знак питання — не слати ШІ)
+            if (!textToSend || textToSend === "—" || textToSend === "." || textToSend === "?") {
+                console.log("Бен не почув нічого розбірливого. Скасування запиту.");
+                debugBenReply.textContent = "Нерозбірливо -> 'No'";
+                
+                // Замість запиту до ШІ плавно показуємо реакцію дефолтного "No"
+                playBenReaction("No");
             } else {
-                setTimeout(() => {
-                    if (gameState === "розмова" && !isAnimating) {
-                        try { recognition.start(); } catch(e) {}
-                    }
-                }, 500);
+                // Текст розбірливий — відправляємо роботу ШІ
+                await askGeminiBen(textToSend);
             }
         }
 
@@ -554,7 +572,7 @@
 
 
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З GEMINI 3.5 FLASH LIGHT
+        // 🤖 ІНТЕГРАЦІЯ З СИСТЕМНОЮ БІОГРАФІЄЮ ШІ
         // ==========================================
         async function askGeminiBen(userText) {
             isAnimating = true;
@@ -577,23 +595,31 @@
                 return;
             }
 
-            // Оновлена модель Gemini 3.5 Flash для ультра-швидкого відгуку
+            // Стабільний ендпоінт v1 та актуальна модель 3.5-flash
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-            const systemPrompt = `You are Talking Ben, a grumpy, lazy, yet highly intelligent dog integrated with an advanced AI. 
-Analyze the user's input and reply with exactly ONE of the following 6 options. Do not output any other words, punctuation, explanation, or markdown formatting. Just the exact string from this list:
-1. "Yes" - Use this for polite questions, compliments, or yes/no questions with a positive bias.
-2. "No" - Use this if the user's input is absurd, factually wrong, or an invitation to do something stupid.
-3. "Ho-ho-ho!" - Use this as a sarcastic, mocking laugh to tease the user back, or on a joke.
-4. "Ugh..." - Use this if the user is being boring, repetitive, or asks tedious, basic questions.
-5. "Hang up" - Use this ONLY if the user uses heavy insults, swear words, highly inappropriate language.
-6. "Belch" - Use this to express extreme disgust, gross topics, or when you are completely fed up.
-CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "No", "Ho-ho-ho!", "Ugh...", "Hang up", "Belch".`;
+            // 3. ВСТАВКА БІОГРАФІЇ ЯК ПРОМПТ АНГЛІЙСЬКОЮ МОВОЮ З УСІМА ІНСТРУКЦІЯМИ
+            const systemPrompt = `You are Benjamin (Ben), a 43-year-old genius scientist, chemist, and computer programmer. 
+Your creator and father is the Ukrainian 3D artist Andrey Kravchenko, who designed you with love before your license was acquired by Outfit7.
+You spend your life in your lab doing crazy chemistry experiments, elements research, and explosions. You are highly intelligent but possess a fierce, violent temper. 
+You absolutely love pulling pranks on others, especially on your best friend Tom (who was once your worst chemistry student). 
+You have a girlfriend named Xenon. You get furious if someone touches your lab equipment or calls you a "cute puppy".
+
+CRITICAL INSTRUCTION: Analyze the user's statement and reply with EXACTLY ONE of the following reaction words depending on the context:
+- "Yes" -> If you agree, find it scientifically accurate, or reply positively.
+- "No" -> If you disagree, find it absurd, or refuse the user's input.
+- "Ho-ho-ho!" -> If the user tells a joke, says something funny, or if you are planning a mischievous prank (especially on Tom).
+- "Ugh..." -> If the user is being boring, repetitive, socially awkward, or asks basic questions.
+- "Hang up" -> If the user heavily insults you, insults your science, insults your father Andrey Kravchenko, or uses forbidden/extremely offensive language.
+- "Belch" -> If the user says something absolutely garbage, boring, cringy, offers you a terrible drink/idea, or talks about complete trash topics.
+
+STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanations, no markdown punctuation outside the option string.`;
 
             const fullPrompt = `${systemPrompt}\n\nUser says: "${userText}"\nDecision:`;
             const requestBody = {
                 contents: [{ parts: [{ text: fullPrompt }] }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 5 }
+                // Збільшено ліміт токенів до 20, щоб слова ніколи не обрізалися
+                generationConfig: { temperature: 0.6, maxOutputTokens: 20 }
             };
 
             try {
@@ -605,12 +631,14 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                 
                 const data = await response.json();
                 
-                // Перевірка на помилки 503 чи відсутність полів, щоб уникнути TypeError
                 if (data.error || !data.candidates || !data.candidates[0] || !data.candidates[0].content) {
                     throw new Error(data.error ? data.error.message : "Пуста відповідь сервера або ліміт");
                 }
 
-                let benDecision = data.candidates[0].content.parts[0].text.trim().replace(/['"]+/g, '');
+                let benDecision = data.candidates[0].content.parts[0].text.trim();
+                // Чистимо текст від можливого сміття, залишаючи літери, дефіс та знак оклику
+                benDecision = benDecision.replace(/[^a-zA-Z!\-\s]/g, "").trim();
+                
                 debugBenReply.textContent = benDecision;
                 console.log("Рішення ШІ:", benDecision);
 
@@ -628,7 +656,6 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
                 console.error("Перехоплена помилка запиту (Захист активовано):", error);
                 debugBenReply.textContent = "Сервер зайнятий -> 'No'";
                 
-                // Захисна поведінка: якщо Google ліг, Бен плавно опустить лапу і скаже "Ні"
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
                 stopthinkVideo.play();
@@ -640,27 +667,28 @@ CRITICAL: Output absolutely nothing else but one of these six strings: "Yes", "N
             }
         }
 
-        // Функція для запуску конкретного відео фінальної відповіді Бена
+        // Керування анімаційними відповідями (З урахуванням регістру та відрижок)
         function playBenReaction(decision) {
             let targetVideo = null;
+            const check = decision.toLowerCase();
 
-            if (decision === "Yes") {
+            if (check.includes("yes")) {
                 targetVideo = yesVideo;
-            } else if (decision === "No") {
+            } else if (check.includes("no")) {
                 targetVideo = noVideo;
-            } else if (decision === "Ho-ho-ho!") {
+            } else if (check.includes("ho") || check.includes("laugh")) {
                 targetVideo = hohohoVideo;
-            } else if (decision === "Ugh...") {
+            } else if (check.includes("ugh")) {
                 targetVideo = ughVideo;
-            } else if (decision === "Belch") {
-                // Рандомний вибір з 4-х файлів відрижки
+            } else if (check.includes("belch") || check.includes("burp")) {
+                // Рандомний вибір з пулу 4-х відеороликів відрижки
                 const randomIndex = Math.floor(Math.random() * burpVideos.length);
                 targetVideo = burpVideos[randomIndex];
-            } else if (decision === "Hang up") {
+            } else if (check.includes("hang")) {
                 triggerHangUp();
                 return;
             } else {
-                targetVideo = noVideo;
+                targetVideo = noVideo; // Захисний дефолт
             }
 
             // Запускаємо відтворення обраного відео відповіді
