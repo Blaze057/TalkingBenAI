@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talking Ben AI</title>
     <style>
-        /* Базове скидання стилів для мобільного повноекранного режиму */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -23,18 +22,16 @@
             font-family: Arial, sans-serif;
         }
 
-        /* Ігровий контейнер з фіксованою пропорцією 9:16 */
         #game-viewport {
             width: 1024px;
             height: 1536px;
             position: relative;
-            background-color: #f0f8ff; /* Змінено з чорного на світлий фон, щоб прибрати чорні спалахи */
+            background-color: #f0f8ff; 
             overflow: hidden;
-            /* Автоматично масштабує весь контейнер під екран телефону */
             transform-origin: center;
         }
 
-        /* Накладання спрайтів та відео */
+        /* Усі медіа лежать в одному шарі, абсолютно накладені один на одного */
         .sprite, .video-animation {
             width: 100%;
             height: 100%;
@@ -44,22 +41,23 @@
             object-fit: cover;
             user-select: none;
             -webkit-user-drag: none;
-            z-index: 1;
-            background-color: transparent !important;
-            /* Додаємо мікро-плавність, щоб об'єкти не блимали при зміні станів */
-            transition: opacity 0.15s ease-in-out;
-        }
-
-        /* Приховуємо елементи за замовчуванням */
-        .hidden {
-            display: none;
+            
+            /* Плавний перехід між станами через прозорість */
             opacity: 0;
+            z-index: 1;
+            transition: opacity 0.25s ease-in-out;
+            pointer-events: none;
         }
 
-        /* Абсолютно прозорий для ока тригер телефону */
+        /* Клас активного стану: робимо елемент видимим та піднімаємо його наверх */
+        .active-state {
+            opacity: 1;
+            z-index: 5;
+            pointer-events: auto;
+        }
+
         #phone-trigger {
             position: absolute;
-            /* Координати центру (60, 845) з радіусом 40px */
             left: 20px;
             top: 805px;
             width: 80px;
@@ -69,7 +67,6 @@
             z-index: 9999; 
         }
 
-        /* 📺 Стильне дебаг-віконце для тестування ШІ */
         #debug-panel {
             position: absolute;
             top: 20px;
@@ -81,8 +78,8 @@
             padding: 15px;
             color: #fff;
             font-size: 14px;
-            z-index: 10000; /* Поверх усього */
-            pointer-events: auto; /* Дозволяє взаємодіяти з панеллю */
+            z-index: 10000; 
+            pointer-events: auto;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
         }
 
@@ -108,7 +105,6 @@
             word-wrap: break-word;
         }
 
-        /* Індикатор гучності */
         #volume-bar-container {
             width: 100%;
             height: 10px;
@@ -125,7 +121,6 @@
             transition: width 0.1s ease;
         }
 
-        /* Кнопка зміни ключа */
         #change-key-btn {
             background-color: #ff3333;
             color: white;
@@ -142,7 +137,6 @@
             background-color: #cc0000;
         }
 
-        /* Статуси кольором */
         .status-active { color: #00ff00; }
         .status-idle { color: #ffcc00; }
         .status-error { color: #ff3333; }
@@ -150,37 +144,34 @@
 </head>
 <body>
 
-    <!-- Ігрове поле -->
     <div id="game-viewport">
         
-        <!-- Спрайти (Фото-заглушки) -->
-        <img id="sprite-stand" class="sprite" src="bens/stand.png" alt="Ben Standing">
-        <img id="sprite-listen" class="sprite hidden" src="bens/listen.png" alt="Ben Listening">
-        <img id="sprite-think" class="sprite hidden" src="bens/think.png" alt="Ben Thinking">
+        <!-- Спрайти (Фото-заглушки). Головний старт задано через active-state -->
+        <img id="sprite-stand" class="sprite active-state" src="bens/stand.png" alt="Ben Standing">
+        <img id="sprite-listen" class="sprite" src="bens/listen.png" alt="Ben Listening">
+        <img id="sprite-think" class="sprite" src="bens/think.png" alt="Ben Thinking">
 
         <!-- Відео анімації станів та переходів -->
-        <video id="video-call" class="video-animation hidden" playsinline><source src="bens/call.mp4" type="video/mp4"></video>
-        <video id="video-drop" class="video-animation hidden" playsinline><source src="bens/drop.mp4" type="video/mp4"></video>
-        <video id="video-ambient" class="video-animation hidden" playsinline><source src="bens/ambient.mp4" type="video/mp4"></video>
-        <video id="video-thinking" class="video-animation hidden" playsinline><source src="bens/thinking.mp4" type="video/mp4"></video>
-        <video id="video-stopthink" class="video-animation hidden" playsinline><source src="bens/stopthink.mp4" type="video/mp4"></video>
+        <video id="video-call" class="video-animation" playsinline><source src="bens/call.mp4" type="video/mp4"></video>
+        <video id="video-drop" class="video-animation" playsinline><source src="bens/drop.mp4" type="video/mp4"></video>
+        <video id="video-ambient" class="video-animation" playsinline><source src="bens/ambient.mp4" type="video/mp4"></video>
+        <video id="video-thinking" class="video-animation" playsinline><source src="bens/thinking.mp4" type="video/mp4"></video>
+        <video id="video-stopthink" class="video-animation" playsinline><source src="bens/stopthink.mp4" type="video/mp4"></video>
 
         <!-- Відео анімації реакцій відповіді ШІ -->
-        <video id="video-yes" class="video-animation hidden" playsinline><source src="bens/Yes.mp4" type="video/mp4"></video>
-        <video id="video-no" class="video-animation hidden" playsinline><source src="bens/No.mp4" type="video/mp4"></video>
-        <video id="video-hohoho" class="video-animation hidden" playsinline><source src="bens/Hohoho.mp4" type="video/mp4"></video>
-        <video id="video-ugh" class="video-animation hidden" playsinline><source src="bens/Ugh.mp4" type="video/mp4"></video>
+        <video id="video-yes" class="video-animation" playsinline><source src="bens/Yes.mp4" type="video/mp4"></video>
+        <video id="video-no" class="video-animation" playsinline><source src="bens/No.mp4" type="video/mp4"></video>
+        <video id="video-hohoho" class="video-animation" playsinline><source src="bens/Hohoho.mp4" type="video/mp4"></video>
+        <video id="video-ugh" class="video-animation" playsinline><source src="bens/Ugh.mp4" type="video/mp4"></video>
 
         <!-- Пул відрижок (Burps) -->
-        <video id="video-burp1" class="video-animation hidden" playsinline><source src="bens/burp1.mp4" type="video/mp4"></video>
-        <video id="video-burp2" class="video-animation hidden" playsinline><source src="bens/burp2.mp4" type="video/mp4"></video>
-        <video id="video-burp3" class="video-animation hidden" playsinline><source src="bens/burp3.mp4" type="video/mp4"></video>
-        <video id="video-burp4" class="video-animation hidden" playsinline><source src="bens/burp4.mp4" type="video/mp4"></video>
+        <video id="video-burp1" class="video-animation" playsinline><source src="bens/burp1.mp4" type="video/mp4"></video>
+        <video id="video-burp2" class="video-animation" playsinline><source src="bens/burp2.mp4" type="video/mp4"></video>
+        <video id="video-burp3" class="video-animation" playsinline><source src="bens/burp3.mp4" type="video/mp4"></video>
+        <video id="video-burp4" class="video-animation" playsinline><source src="bens/burp4.mp4" type="video/mp4"></video>
 
-        <!-- Невидима кнопка телефону -->
         <div id="phone-trigger"></div>
 
-        <!-- 📺 Тимчасове дебаг-віконце для тестування -->
         <div id="debug-panel">
             <h3>Talking Ben AI — Монітор</h3>
             <div class="debug-row">
@@ -212,9 +203,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // 🔑 БЕЗПЕЧНЕ ОТРИМАННЯ КЛЮЧА
-        // ==========================================
         let GEMINI_API_KEY = localStorage.getItem("gemini_key");
 
         function checkApiKey() {
@@ -248,12 +236,10 @@
         let isAnimating = false; 
         let ambientTimer = null;
 
-        // Елементи інтерфейсу (Фото)
         const standSprite = document.getElementById("sprite-stand");
         const listenSprite = document.getElementById("sprite-listen");
         const thinkSprite = document.getElementById("sprite-think");
 
-        // Елементи інтерфейсу (Відео)
         const callVideo = document.getElementById("video-call");
         const dropVideo = document.getElementById("video-drop");
         const ambientVideo = document.getElementById("video-ambient");
@@ -275,7 +261,6 @@
         const phoneTrigger = document.getElementById("phone-trigger");
         const gameViewport = document.getElementById("game-viewport");
 
-        // Дебаг елементи
         const debugState = document.getElementById("debug-state");
         const debugMic = document.getElementById("debug-mic");
         const debugUserText = document.getElementById("debug-user-text");
@@ -283,7 +268,6 @@
         const volumeBar = document.getElementById("volume-bar");
         const debugVolumeVal = document.getElementById("debug-volume-val");
 
-        // Всі анімаційні елементи для швидкого приховування
         const allVisuals = [
             standSprite, listenSprite, thinkSprite,
             callVideo, dropVideo, ambientVideo, thinkingVideo, stopthinkVideo,
@@ -291,26 +275,23 @@
             ...burpVideos
         ];
 
-        // 1. ПОПЕРЕДНЄ ЗАВАНТАЖЕННЯ ДЛЯ ЛІКВІДАЦІЇ ЧОРНИХ СПАЛАХІВ
+        // Попереднє завантаження для кешу
         const imagesToPreload = ["bens/stand.png", "bens/listen.png", "bens/think.png"];
         imagesToPreload.forEach(src => {
             const img = new Image();
             img.src = src;
         });
 
+        // ПЛАВНЕ ПЕРЕМИКАННЯ ЧЕРЕЗ OPACITY (БЕЗ СПАЛАХІВ)
         function showOnly(elementToShow) {
             allVisuals.forEach(el => {
-                el.classList.add("hidden");
-                el.style.opacity = "0";
+                if (el !== elementToShow) {
+                    el.classList.remove("active-state");
+                }
             });
-            elementToShow.classList.remove("hidden");
-            // Невелика затримка для плавного проявлення елемента
-            setTimeout(() => { elementToShow.style.opacity = "1"; }, 10);
+            elementToShow.classList.add("active-state");
         }
 
-        // ==========================================
-        // 🎙️ НАЛАШТУВАННЯ АУДІО-АНАЛІЗАТОРА
-        // ==========================================
         let audioContext;
         let analyser;
         let microphoneStream;
@@ -404,7 +385,7 @@
                         } else {
                             const elapsedSilence = Date.now() - silenceStartTime;
                             if (elapsedSilence > SILENCE_DURATION && isUserSpeaking) {
-                                console.log("Тиша виявлена! Перевіряємо текст...");
+                                console.log("Тиша виявлена!");
                                 stopListeningAndSend();
                             }
                         }
@@ -425,20 +406,15 @@
 
             const textToSend = debugUserText.textContent.trim();
             
-            // 2. ПЕРЕВІРКА НА РОЗБІРЛИВІСТЬ (Якщо пустий рядок, крапка чи знак питання — не слати ШІ)
             if (!textToSend || textToSend === "—" || textToSend === "." || textToSend === "?") {
-                console.log("Бен не почув нічого розбірливого. Скасування запиту.");
+                console.log("Нерозбірливо. Скидання на дефолт.");
                 debugBenReply.textContent = "Нерозбірливо -> 'No'";
-                
-                // Замість запиту до ШІ плавно показуємо реакцію дефолтного "No"
                 playBenReaction("No");
             } else {
-                // Текст розбірливий — відправляємо роботу ШІ
                 await askGeminiBen(textToSend);
             }
         }
 
-        // МЕНЕДЖЕР АМБІЄНТ-АНІМАЦІЇ (ФОН)
         function startAmbientTimer() {
             stopAmbientTimer();
             if (gameState !== "розмова" || isAnimating) return;
@@ -512,7 +488,6 @@
             await requestMicrophone(); 
         });
 
-        // Телефонний тригер
         phoneTrigger.addEventListener("click", () => {
             if (isAnimating) return;
             
@@ -570,16 +545,14 @@
             debugBenReply.textContent = "—";
         });
 
-
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З СИСТЕМНОЮ БІОГРАФІЄЮ ШІ
+        // 🤖 ІНТЕГРАЦІЯ З ШІ ТА НАДІЙНИЙ ЗАХИСТ ВІД TYPEERROR
         // ==========================================
         async function askGeminiBen(userText) {
             isAnimating = true;
             stopAmbientTimer();
             debugBenReply.textContent = "Бен думає...";
             
-            // Крок 1: Вмикаємо анімацію початку роздумів
             showOnly(thinkingVideo);
             thinkingVideo.currentTime = 0;
             thinkingVideo.play();
@@ -595,11 +568,9 @@
                 return;
             }
 
-            // Стабільний ендпоінт v1 та актуальна модель 3.5-flash
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-            // 3. ВСТАВКА БІОГРАФІЇ ЯК ПРОМПТ АНГЛІЙСЬКОЮ МОВОЮ З УСІМА ІНСТРУКЦІЯМИ
-            const systemPrompt = `You are Benjamin (Ben), a 43-year-old genius scientist, chemist, and computer programmer. 
+            const systemPrompt = `You are Benjamin (Ben), a 43-year-old genius scientist, chemist, and computer programmer[cite: 1]. 
 Your creator and father is the Ukrainian 3D artist Andrey Kravchenko, who designed you with love before your license was acquired by Outfit7.
 You spend your life in your lab doing crazy chemistry experiments, elements research, and explosions. You are highly intelligent but possess a fierce, violent temper. 
 You absolutely love pulling pranks on others, especially on your best friend Tom (who was once your worst chemistry student). 
@@ -618,7 +589,6 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
             const fullPrompt = `${systemPrompt}\n\nUser says: "${userText}"\nDecision:`;
             const requestBody = {
                 contents: [{ parts: [{ text: fullPrompt }] }],
-                // Збільшено ліміт токенів до 20, щоб слова ніколи не обрізалися
                 generationConfig: { temperature: 0.6, maxOutputTokens: 20 }
             };
 
@@ -631,18 +601,22 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
                 
                 const data = await response.json();
                 
-                if (data.error || !data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-                    throw new Error(data.error ? data.error.message : "Пуста відповідь сервера або ліміт");
+                // 🔥 НАДІЙНА ПЕРЕВІРКА: спочатку перевіряємо структуру даних, щоб уникнути вильоту в коді
+                if (!data || data.error || !data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+                    throw new Error("Невідома або зламана структура JSON від сервера");
                 }
 
-                let benDecision = data.candidates[0].content.parts[0].text.trim();
-                // Чистимо текст від можливого сміття, залишаючи літери, дефіс та знак оклику
-                benDecision = benDecision.replace(/[^a-zA-Z!\-\s]/g, "").trim();
+                // Лише тепер безпечно витягуємо рядок відповіді ШІ
+                let benDecision = data.candidates[0].content.parts[0].text;
+                if (typeof benDecision === 'string') {
+                    benDecision = benDecision.trim().replace(/[^a-zA-Z!\-\s]/g, "").trim();
+                } else {
+                    benDecision = "No";
+                }
                 
                 debugBenReply.textContent = benDecision;
                 console.log("Рішення ШІ:", benDecision);
 
-                // Крок 2: Перехід назад до слухавки
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
                 stopthinkVideo.play();
@@ -653,8 +627,8 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
                 });
 
             } catch (error) {
-                console.error("Перехоплена помилка запиту (Захист активовано):", error);
-                debugBenReply.textContent = "Сервер зайнятий -> 'No'";
+                console.error("Захисний блок перехопив збій мережі/парсингу:", error);
+                debugBenReply.textContent = "Помилка відповіді -> 'No'";
                 
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
@@ -667,10 +641,9 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
             }
         }
 
-        // Керування анімаційними відповідями (З урахуванням регістру та відрижок)
         function playBenReaction(decision) {
             let targetVideo = null;
-            const check = decision.toLowerCase();
+            const check = String(decision).toLowerCase();
 
             if (check.includes("yes")) {
                 targetVideo = yesVideo;
@@ -681,17 +654,15 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
             } else if (check.includes("ugh")) {
                 targetVideo = ughVideo;
             } else if (check.includes("belch") || check.includes("burp")) {
-                // Рандомний вибір з пулу 4-х відеороликів відрижки
                 const randomIndex = Math.floor(Math.random() * burpVideos.length);
                 targetVideo = burpVideos[randomIndex];
             } else if (check.includes("hang")) {
                 triggerHangUp();
                 return;
             } else {
-                targetVideo = noVideo; // Захисний дефолт
+                targetVideo = noVideo; 
             }
 
-            // Запускаємо відтворення обраного відео відповіді
             showOnly(targetVideo);
             targetVideo.currentTime = 0;
             targetVideo.play();
@@ -699,7 +670,6 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
             targetVideo.addEventListener("ended", function onReactionEnded() {
                 targetVideo.removeEventListener("ended", onReactionEnded);
                 
-                // Повернення у стан прослуховування
                 isAnimating = false;
                 showOnly(listenSprite);
                 
