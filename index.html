@@ -26,12 +26,12 @@
             width: 1024px;
             height: 1536px;
             position: relative;
-            background-color: #f0f8ff; 
+            /* Змінено на колір хутра Бена, щоб підкладка не блимала білим */
+            background-color: #3a2d27; 
             overflow: hidden;
             transform-origin: center;
         }
 
-        /* Усі медіа лежать в одному шарі, абсолютно накладені один на одного */
         .sprite, .video-animation {
             width: 100%;
             height: 100%;
@@ -42,14 +42,20 @@
             user-select: none;
             -webkit-user-drag: none;
             
-            /* Плавний перехід між станами через прозорість */
             opacity: 0;
             z-index: 1;
-            transition: opacity 0.25s ease-in-out;
+            /* Плавне згасання шарів */
+            transition: opacity 0.2s ease-in-out;
             pointer-events: none;
         }
 
-        /* Клас активного стану: робимо елемент видимим та піднімаємо його наверх */
+        /* Базовий спрайт прослуховування завжди видимий на задньому плані, щоб перекрити дірки */
+        #sprite-listen.base-bg {
+            opacity: 1 !important;
+            z-index: 2 !important;
+        }
+
+        /* Активний шар стає видимим і перекриває задній план */
         .active-state {
             opacity: 1;
             z-index: 5;
@@ -146,25 +152,25 @@
 
     <div id="game-viewport">
         
-        <!-- Спрайти (Фото-заглушки). Головний старт задано через active-state -->
+        <!-- Спрайти. Для listen додано клас base-bg, який тримає картинку постійно -->
         <img id="sprite-stand" class="sprite active-state" src="bens/stand.png" alt="Ben Standing">
-        <img id="sprite-listen" class="sprite" src="bens/listen.png" alt="Ben Listening">
+        <img id="sprite-listen" class="sprite base-bg" src="bens/listen.png" alt="Ben Listening">
         <img id="sprite-think" class="sprite" src="bens/think.png" alt="Ben Thinking">
 
-        <!-- Відео анімації станів та переходів -->
+        <!-- Відео анімації -->
         <video id="video-call" class="video-animation" playsinline><source src="bens/call.mp4" type="video/mp4"></video>
         <video id="video-drop" class="video-animation" playsinline><source src="bens/drop.mp4" type="video/mp4"></video>
         <video id="video-ambient" class="video-animation" playsinline><source src="bens/ambient.mp4" type="video/mp4"></video>
         <video id="video-thinking" class="video-animation" playsinline><source src="bens/thinking.mp4" type="video/mp4"></video>
         <video id="video-stopthink" class="video-animation" playsinline><source src="bens/stopthink.mp4" type="video/mp4"></video>
 
-        <!-- Відео анімації реакцій відповіді ШІ -->
+        <!-- Відео реакцій відповіді -->
         <video id="video-yes" class="video-animation" playsinline><source src="bens/Yes.mp4" type="video/mp4"></video>
         <video id="video-no" class="video-animation" playsinline><source src="bens/No.mp4" type="video/mp4"></video>
         <video id="video-hohoho" class="video-animation" playsinline><source src="bens/Hohoho.mp4" type="video/mp4"></video>
         <video id="video-ugh" class="video-animation" playsinline><source src="bens/Ugh.mp4" type="video/mp4"></video>
 
-        <!-- Пул відрижок (Burps) -->
+        <!-- Відрижки -->
         <video id="video-burp1" class="video-animation" playsinline><source src="bens/burp1.mp4" type="video/mp4"></video>
         <video id="video-burp2" class="video-animation" playsinline><source src="bens/burp2.mp4" type="video/mp4"></video>
         <video id="video-burp3" class="video-animation" playsinline><source src="bens/burp3.mp4" type="video/mp4"></video>
@@ -207,27 +213,23 @@
 
         function checkApiKey() {
             if (!GEMINI_API_KEY) {
-                const keyInput = prompt("Будь ласка, введи свій Gemini API Key для гри (він збережеться лише у твоєму браузері):");
+                const keyInput = prompt("Введи свій Gemini API Key:");
                 if (keyInput) {
                     GEMINI_API_KEY = keyInput.trim();
                     localStorage.setItem("gemini_key", GEMINI_API_KEY);
-                } else {
-                    alert("Без API-ключа штучний інтелект Бена не зможе працювати!");
                 }
             }
         }
 
         document.getElementById("change-key-btn").addEventListener("click", () => {
-            const newKey = prompt("Введи новий Gemini API Key (або залиш порожнім для видалення):", GEMINI_API_KEY || "");
+            const newKey = prompt("Введи новий Gemini API Key:", GEMINI_API_KEY || "");
             if (newKey !== null) {
                 if (newKey.trim() === "") {
                     localStorage.removeItem("gemini_key");
                     GEMINI_API_KEY = null;
-                    alert("Ключ видалено з пам'яті.");
                 } else {
                     GEMINI_API_KEY = newKey.trim();
                     localStorage.setItem("gemini_key", GEMINI_API_KEY);
-                    alert("Новий ключ успешно збережено!");
                 }
             }
         });
@@ -252,10 +254,8 @@
         const ughVideo = document.getElementById("video-ugh");
 
         const burpVideos = [
-            document.getElementById("video-burp1"),
-            document.getElementById("video-burp2"),
-            document.getElementById("video-burp3"),
-            document.getElementById("video-burp4")
+            document.getElementById("video-burp1"), document.getElementById("video-burp2"),
+            document.getElementById("video-burp3"), document.getElementById("video-burp4")
         ];
 
         const phoneTrigger = document.getElementById("phone-trigger");
@@ -269,27 +269,22 @@
         const debugVolumeVal = document.getElementById("debug-volume-val");
 
         const allVisuals = [
-            standSprite, listenSprite, thinkSprite,
+            standSprite, thinkSprite,
             callVideo, dropVideo, ambientVideo, thinkingVideo, stopthinkVideo,
             yesVideo, noVideo, hohohoVideo, ughVideo,
             ...burpVideos
         ];
 
-        // Попереднє завантаження для кешу
-        const imagesToPreload = ["bens/stand.png", "bens/listen.png", "bens/think.png"];
-        imagesToPreload.forEach(src => {
-            const img = new Image();
-            img.src = src;
-        });
-
-        // ПЛАВНЕ ПЕРЕМИКАННЯ ЧЕРЕЗ OPACITY (БЕЗ СПАЛАХІВ)
+        // Функція перемикання: активує шар, не чіпаючи фонового listenSprite
         function showOnly(elementToShow) {
             allVisuals.forEach(el => {
                 if (el !== elementToShow) {
                     el.classList.remove("active-state");
                 }
             });
-            elementToShow.classList.add("active-state");
+            if (elementToShow !== listenSprite) {
+                elementToShow.classList.add("active-state");
+            }
         }
 
         let audioContext;
@@ -326,13 +321,6 @@
                 stopAmbientTimer();
             };
 
-            recognition.onerror = (event) => {
-                console.log("Помилка розпізнавання:", event.error);
-                if (event.error === 'not-allowed') {
-                    updateMicStatus("немає доступу до мікрофона", "status-error");
-                }
-            };
-
             recognition.onresult = (event) => {
                 let interimTranscript = "";
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -342,7 +330,6 @@
                         interimTranscript += event.results[i][0].transcript;
                     }
                 }
-                
                 const displaySpeech = finalTranscript || interimTranscript;
                 if (displaySpeech.trim()) {
                     debugUserText.textContent = displaySpeech;
@@ -367,13 +354,9 @@
             javascriptNode.onaudioprocess = () => {
                 const array = new Uint8Array(analyser.frequencyBinCount);
                 analyser.getByteFrequencyData(array);
-                
                 let values = 0;
-                const length = array.length;
-                for (let i = 0; i < length; i++) {
-                    values += array[i];
-                }
-                const averageVolume = Math.round(values / length);
+                for (let i = 0; i < array.length; i++) { values += array[i]; }
+                const averageVolume = Math.round(values / array.length);
 
                 volumeBar.style.width = Math.min(averageVolume * 2, 100) + "%";
                 debugVolumeVal.textContent = averageVolume;
@@ -382,12 +365,8 @@
                     if (averageVolume < SILENCE_THRESHOLD) {
                         if (silenceStartTime === null) {
                             silenceStartTime = Date.now();
-                        } else {
-                            const elapsedSilence = Date.now() - silenceStartTime;
-                            if (elapsedSilence > SILENCE_DURATION && isUserSpeaking) {
-                                console.log("Тиша виявлена!");
-                                stopListeningAndSend();
-                            }
+                        } else if (Date.now() - silenceStartTime > SILENCE_DURATION && isUserSpeaking) {
+                            stopListeningAndSend();
                         }
                     } else {
                         silenceStartTime = null;
@@ -398,16 +377,12 @@
         }
 
         async function stopListeningAndSend() {
-            if (recognition) { 
-                try { recognition.stop(); } catch(e) {}
-            }
+            if (recognition) { try { recognition.stop(); } catch(e) {} }
             isUserSpeaking = false;
             silenceStartTime = null;
 
             const textToSend = debugUserText.textContent.trim();
-            
             if (!textToSend || textToSend === "—" || textToSend === "." || textToSend === "?") {
-                console.log("Нерозбірливо. Скидання на дефолт.");
                 debugBenReply.textContent = "Нерозбірливо -> 'No'";
                 playBenReaction("No");
             } else {
@@ -418,39 +393,26 @@
         function startAmbientTimer() {
             stopAmbientTimer();
             if (gameState !== "розмова" || isAnimating) return;
-
-            const randomTime = Math.floor(Math.random() * (10000 - 5000 + 1)) + 5000; 
-            ambientTimer = setTimeout(() => {
-                playAmbientVideo();
-            }, randomTime);
+            const randomTime = Math.floor(Math.random() * 5000) + 5000; 
+            ambientTimer = setTimeout(() => { playAmbientVideo(); }, randomTime);
         }
 
         function stopAmbientTimer() {
-            if (ambientTimer) {
-                clearTimeout(ambientTimer);
-                ambientTimer = null;
-            }
+            if (ambientTimer) { clearTimeout(ambientTimer); ambientTimer = null; }
         }
 
         function playAmbientVideo() {
             if (isAnimating || gameState !== "розмова") return;
             isAnimating = true;
             stopAmbientTimer();
-
             showOnly(ambientVideo);
             ambientVideo.currentTime = 0;
-            ambientVideo.play().catch(e => {
-                isAnimating = false;
-                startAmbientTimer();
-            });
+            ambientVideo.play().catch(e => { isAnimating = false; startAmbientTimer(); });
         }
 
         ambientVideo.addEventListener("ended", () => {
             isAnimating = false;
-            if (gameState === "розмова") {
-                showOnly(listenSprite);
-                startAmbientTimer();
-            }
+            if (gameState === "розмова") { showOnly(listenSprite); startAmbientTimer(); }
         });
 
         async function requestMicrophone() {
@@ -459,10 +421,7 @@
                 micPermissionGranted = true;
                 updateMicStatus("доступ дозволено", "status-idle");
                 await setupAudioAnalyser(stream);
-            } catch (err) {
-                console.error("Помилка доступу до мікрофона:", err);
-                updateMicStatus("доступ заборонено", "status-error");
-            }
+            } catch (err) { updateMicStatus("доступ заборонено", "status-error"); }
         }
 
         function updateMicStatus(text, className) {
@@ -490,20 +449,15 @@
 
         phoneTrigger.addEventListener("click", () => {
             if (isAnimating) return;
-            
-            if (!GEMINI_API_KEY) {
-                checkApiKey();
-                return;
-            }
+            checkApiKey();
+            if (!GEMINI_API_KEY) return;
 
             if (gameState === "очікування") {
                 isAnimating = true;
                 stopAmbientTimer();
                 showOnly(callVideo);
                 callVideo.currentTime = 0;
-                callVideo.play().catch(err => {
-                    isAnimating = false;
-                });
+                callVideo.play();
             } else if (gameState === "розмова") {
                 triggerHangUp();
             }
@@ -512,22 +466,16 @@
         function triggerHangUp() {
             isAnimating = true;
             stopAmbientTimer();
-            if (recognition) {
-                try { recognition.stop(); } catch(e) {}
-            }
-
+            if (recognition) { try { recognition.stop(); } catch(e) {} }
             showOnly(dropVideo);
             dropVideo.currentTime = 0;
-            dropVideo.play().catch(err => {
-                isAnimating = false;
-            });
+            dropVideo.play();
         }
 
         callVideo.addEventListener("ended", () => {
             updateGameState("розмова");
             isAnimating = false;
             showOnly(listenSprite);
-
             if (recognition && micPermissionGranted) {
                 try {
                     debugUserText.textContent = "—";
@@ -541,12 +489,10 @@
             updateGameState("очікування");
             isAnimating = false;
             showOnly(standSprite);
-            debugUserText.textContent = "—";
-            debugBenReply.textContent = "—";
         });
 
         // ==========================================
-        // 🤖 ІНТЕГРАЦІЯ З ШІ ТА НАДІЙНИЙ ЗАХИСТ ВІД TYPEERROR
+        // 🤖 ГНУЧКИЙ І НАДІЙНИЙ ПАРСИНГ ДЛЯ API ВЕРСІЇ
         // ==========================================
         async function askGeminiBen(userText) {
             isAnimating = true;
@@ -563,14 +509,11 @@
             };
             thinkingVideo.addEventListener("ended", onThinkingEnded);
 
-            if (!GEMINI_API_KEY) {
-                debugBenReply.textContent = "Помилка: Немає API ключа!";
-                return;
-            }
+            if (!GEMINI_API_KEY) return;
 
             const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-            const systemPrompt = `You are Benjamin (Ben), a 43-year-old genius scientist, chemist, and computer programmer[cite: 1]. 
+            const systemPrompt = `You are Benjamin (Ben), a 43-year-old genius scientist, chemist, and computer programmer. 
 Your creator and father is the Ukrainian 3D artist Andrey Kravchenko, who designed you with love before your license was acquired by Outfit7.
 You spend your life in your lab doing crazy chemistry experiments, elements research, and explosions. You are highly intelligent but possess a fierce, violent temper. 
 You absolutely love pulling pranks on others, especially on your best friend Tom (who was once your worst chemistry student). 
@@ -586,9 +529,8 @@ CRITICAL INSTRUCTION: Analyze the user's statement and reply with EXACTLY ONE of
 
 STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanations, no markdown punctuation outside the option string.`;
 
-            const fullPrompt = `${systemPrompt}\n\nUser says: "${userText}"\nDecision:`;
             const requestBody = {
-                contents: [{ parts: [{ text: fullPrompt }] }],
+                contents: [{ parts: [{ text: `${systemPrompt}\n\nUser says: "${userText}"\nDecision:` }] }],
                 generationConfig: { temperature: 0.6, maxOutputTokens: 20 }
             };
 
@@ -601,21 +543,16 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
                 
                 const data = await response.json();
                 
-                // 🔥 НАДІЙНА ПЕРЕВІРКА: спочатку перевіряємо структуру даних, щоб уникнути вильоту в коді
-                if (!data || data.error || !data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
-                    throw new Error("Невідома або зламана структура JSON від сервера");
-                }
-
-                // Лише тепер безпечно витягуємо рядок відповіді ШІ
-                let benDecision = data.candidates[0].content.parts[0].text;
-                if (typeof benDecision === 'string') {
-                    benDecision = benDecision.trim().replace(/[^a-zA-Z!\-\s]/g, "").trim();
-                } else {
-                    benDecision = "No";
+                // Глибокий безпечний парсинг JSON структури Google v1 API
+                let benDecision = "No";
+                if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                    const rawText = data.candidates[0].content.parts[0].text;
+                    if (rawText) {
+                        benDecision = rawText.trim().replace(/[^a-zA-Z!\-\s]/g, "").trim();
+                    }
                 }
                 
-                debugBenReply.textContent = benDecision;
-                console.log("Рішення ШІ:", benDecision);
+                debugBenReply.textContent = benDecision ? benDecision : "No";
 
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
@@ -627,13 +564,11 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
                 });
 
             } catch (error) {
-                console.error("Захисний блок перехопив збій мережі/парсингу:", error);
-                debugBenReply.textContent = "Помилка відповіді -> 'No'";
-                
+                console.error("Помилка оброблена:", error);
+                debugBenReply.textContent = "Збій JSON -> 'No'";
                 showOnly(stopthinkVideo);
                 stopthinkVideo.currentTime = 0;
                 stopthinkVideo.play();
-                
                 stopthinkVideo.addEventListener("ended", function onFaultEnded() {
                     stopthinkVideo.removeEventListener("ended", onFaultEnded);
                     playBenReaction("No"); 
@@ -643,19 +578,14 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
 
         function playBenReaction(decision) {
             let targetVideo = null;
-            const check = String(decision).toLowerCase();
+            const check = String(decision || "no").toLowerCase();
 
-            if (check.includes("yes")) {
-                targetVideo = yesVideo;
-            } else if (check.includes("no")) {
-                targetVideo = noVideo;
-            } else if (check.includes("ho") || check.includes("laugh")) {
-                targetVideo = hohohoVideo;
-            } else if (check.includes("ugh")) {
-                targetVideo = ughVideo;
-            } else if (check.includes("belch") || check.includes("burp")) {
-                const randomIndex = Math.floor(Math.random() * burpVideos.length);
-                targetVideo = burpVideos[randomIndex];
+            if (check.includes("yes")) targetVideo = yesVideo;
+            else if (check.includes("no")) targetVideo = noVideo;
+            else if (check.includes("ho") || check.includes("laugh")) targetVideo = hohohoVideo;
+            else if (check.includes("ugh")) targetVideo = ughVideo;
+            else if (check.includes("belch") || check.includes("burp")) {
+                targetVideo = burpVideos[Math.floor(Math.random() * burpVideos.length)];
             } else if (check.includes("hang")) {
                 triggerHangUp();
                 return;
@@ -669,10 +599,8 @@ STRICT RULE: Output ONLY the reaction word itself. No extra words, no explanatio
 
             targetVideo.addEventListener("ended", function onReactionEnded() {
                 targetVideo.removeEventListener("ended", onReactionEnded);
-                
                 isAnimating = false;
                 showOnly(listenSprite);
-                
                 if (gameState === "розмова") {
                     try {
                         debugUserText.textContent = "—";
